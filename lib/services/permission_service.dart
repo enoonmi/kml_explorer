@@ -1,6 +1,7 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/material.dart';
 
 class PermissionService {
   static final PermissionService _instance = PermissionService._internal();
@@ -10,6 +11,27 @@ class PermissionService {
   // 检查并请求位置权限
   Future<bool> requestLocationPermission(BuildContext context) async {
     try {
+      // Windows平台不需要Android风格的权限请求
+      if (kIsWeb == false && defaultTargetPlatform == TargetPlatform.windows) {
+        // 在Windows上，位置权限通过应用清单文件声明
+        // 只需要检查位置服务是否可用
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          if (context.mounted) {
+            _showPermissionDialog(
+              context,
+              '位置服务未启用',
+              '请在Windows设置中启用位置服务，以便使用地图和导航功能。\n\n路径：设置 > 隐私和安全性 > 位置 > 位置服务',
+              '确定',
+              () {},
+            );
+          }
+          return false;
+        }
+        return true;
+      }
+
+      // Android和iOS平台的权限请求逻辑
       // 检查位置服务是否启用
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -68,6 +90,11 @@ class PermissionService {
   // 检查并请求存储权限
   Future<bool> requestStoragePermission(BuildContext context) async {
     try {
+      // Windows平台不需要Android风格的存储权限请求
+      if (kIsWeb == false && defaultTargetPlatform == TargetPlatform.windows) {
+        return true;
+      }
+
       if (await Permission.storage.isGranted) {
         return true;
       }
@@ -111,6 +138,11 @@ class PermissionService {
   // 检查并请求相机权限
   Future<bool> requestCameraPermission(BuildContext context) async {
     try {
+      // Windows平台不需要Android风格的相机权限请求
+      if (kIsWeb == false && defaultTargetPlatform == TargetPlatform.windows) {
+        return true;
+      }
+
       if (await Permission.camera.isGranted) {
         return true;
       }
@@ -154,6 +186,11 @@ class PermissionService {
   // 检查并请求照片库权限
   Future<bool> requestPhotosPermission(BuildContext context) async {
     try {
+      // Windows平台不需要Android风格的照片库权限请求
+      if (kIsWeb == false && defaultTargetPlatform == TargetPlatform.windows) {
+        return true;
+      }
+
       if (await Permission.photos.isGranted) {
         return true;
       }
@@ -197,6 +234,11 @@ class PermissionService {
   // 检查网络权限（Android 13+需要）
   Future<bool> requestNetworkPermission(BuildContext context) async {
     try {
+      // Windows平台不需要Android风格的通知权限请求
+      if (kIsWeb == false && defaultTargetPlatform == TargetPlatform.windows) {
+        return true;
+      }
+
       if (await Permission.notification.isGranted) {
         return true;
       }

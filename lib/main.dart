@@ -1,22 +1,25 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:math' show min, max, log;
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
-import 'dart:async';
-import 'dart:math' show min, max, log;
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'models/kml_file.dart';
 import 'models/kml_marker.dart';
 import 'models/map_config.dart';
 import 'pages/file_manager_page.dart';
 import 'pages/marker_info_dialog.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'services/webdav_service.dart';
 import 'pages/webdav_settings_page.dart';
 import 'services/permission_service.dart';
+import 'services/webdav_service.dart';
+import 'utils/coord_transform.dart';
 
 void main() {
   runApp(const MyApp());
@@ -337,30 +340,46 @@ class _MapPageState extends State<MapPage> {
 
   // 获取当前位置
   Future<void> _getCurrentLocation() async {
+    if (_isLocationLoading) return;
+    
     setState(() {
       _isLocationLoading = true;
     });
 
     try {
-      // 使用权限服务请求位置权限
-      final hasPermission = await PermissionService().requestLocationPermission(context);
-      
-      if (!hasPermission) {
+      // 检查位置权限
+      final permission = await PermissionService().requestLocationPermission(context);
+      if (!permission) {
+        debugPrint('位置权限被拒绝');
         setState(() {
           _isLocationLoading = false;
         });
         return;
       }
 
-      // 获取当前位置
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
 
       if (mounted) {
+        // 根据当前地图类型进行坐标转换
+        final currentServer = _tileServers[_currentTileServerIndex];
+        final isChineseMap = currentServer.name.contains('高德') || currentServer.name.contains('天地图');
+        
+        LatLng transformedLocation;
+        if (isChineseMap) {
+          // 国内地图需要转换为GCJ-02坐标系
+          transformedLocation = CoordTransform.wgs84ToGcj02(LatLng(position.latitude, position.longitude));
+        } else {
+          // 国外地图使用WGS-84坐标系，无需转换
+          transformedLocation = LatLng(position.latitude, position.longitude);
+        }
+        
         setState(() {
-          _currentLocation = LatLng(position.latitude, position.longitude);
+          _currentLocation = transformedLocation;
           _isLocationLoading = false;
         });
 
@@ -370,6 +389,7 @@ class _MapPageState extends State<MapPage> {
         }
 
         debugPrint('当前位置: ${position.latitude}, ${position.longitude}');
+        debugPrint('转换后位置: ${transformedLocation.latitude}, ${transformedLocation.longitude}');
       }
     } catch (e) {
       debugPrint('获取位置失败: $e');
@@ -1413,6 +1433,31 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  // 显示移动端文件管理
+  void _showMobileFileManager() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: const Text('文件管理'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+          body: FileManagerPage(
+            onFilesChanged: _onFilesChanged,
+            onTrackSelected: (file) {
+              Navigator.of(context).pop();
+              _jumpToTrack(file);
+            },
+            onFilteredFilesChanged: _onFilteredFilesChanged,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentTileServer = _tileServers[_currentTileServerIndex];
@@ -1439,6 +1484,14 @@ class _MapPageState extends State<MapPage> {
                           onTap: () {
                             Navigator.of(context).pop();
                             _showAppInfo();
+                          },
+                        ),
+                        ListTile(
+                          leading: const Icon(Icons.bug_report),
+                          title: const Text('诊断信息'),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            _showDiagnosticInfo();
                           },
                         ),
                         ListTile(
@@ -1475,11 +1528,6 @@ class _MapPageState extends State<MapPage> {
             tooltip: '设置',
           ),
           IconButton(
-            icon: const Icon(Icons.bug_report),
-            onPressed: _showDiagnosticInfo,
-            tooltip: '诊断信息',
-          ),
-          IconButton(
             icon: const Icon(Icons.map),
             onPressed: _showTileServerSelector,
             tooltip: '选择地图供应商 (${currentTileServer.name})',
@@ -1489,6 +1537,13 @@ class _MapPageState extends State<MapPage> {
             onPressed: _importKmlFile,
             tooltip: '导入 KML 文件',
           ),
+          // 移动端文件管理按钮
+          if (!_isDesktop)
+            IconButton(
+              icon: const Icon(Icons.folder),
+              onPressed: _showMobileFileManager,
+              tooltip: '文件管理',
+            ),
           if (_isDesktop)
             IconButton(
               icon: Icon(_showFileManager ? Icons.chevron_left : Icons.menu),
@@ -1532,7 +1587,6 @@ class _MapPageState extends State<MapPage> {
                           initialCenter: _currentLocation ?? LatLng(39.9042, 116.4074),
                           initialZoom: _currentLocation != null ? 15.0 : 10.0,
                           interactionOptions: const InteractionOptions(
-                            enableScrollWheel: true,
                             enableMultiFingerGestureRace: true,
                           ),
                           onMapReady: () {

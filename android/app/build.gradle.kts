@@ -8,7 +8,8 @@ plugins {
 android {
     namespace = "com.example.kml_explorer"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "26.1.10909125"
+    // ndkVersion = "25.1.8937393"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -49,6 +50,22 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // 添加APK输出配置
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "kml_explorer-${variant.name}.apk"
+        }
+    }
+}
+
+dependencies {
+    // 移除重复的Google Play Core依赖，只保留一个
+    implementation("com.google.android.play:app-update:2.1.0")
+    // 移除这行：implementation("com.google.android.play:core:1.10.3")
+    // 移除这行：implementation("com.google.android.play:app-update-ktx:2.1.0")
 }
 
 flutter {
