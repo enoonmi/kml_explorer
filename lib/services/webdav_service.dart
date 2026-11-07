@@ -106,7 +106,8 @@ class WebDavService {
             name: fileName,
             path: file.path ?? '',
             size: file.size ?? 0,
-            lastModified: DateTime.now(), // 简化处理
+            // 原先这里写死 DateTime.now()，导致“保留最新”永远无从比较。
+            lastModified: file.mTime?.toLocal() ?? DateTime.fromMillisecondsSinceEpoch(0),
             isDirectory: file.isDir ?? false,
           ));
         }
@@ -148,12 +149,9 @@ class WebDavService {
 
   Future<bool> _exists(String remotePath) async {
     try {
-      // 尝试获取文件信息，如果文件存在则不会抛出异常
-      await _client!.readDir(path.dirname(remotePath));
+      // 只读一次目录，原先连续调了两次 readDir，多一次往返。
       final files = await _client!.readDir(path.dirname(remotePath));
       final fileName = path.basename(remotePath);
-      
-      // 检查文件列表中是否包含目标文件
       return files.any((file) => file.name == fileName);
     } catch (e) {
       return false;

@@ -6,10 +6,6 @@
 -keep class io.flutter.**  { *; }
 -keep class io.flutter.plugins.**  { *; }
 
-# Google Play Core库保持规则
--keep class com.google.android.play.core.** { *; }
--dontwarn com.google.android.play.core.**
-
 # Keep native methods
 -keepclassmembers class * {
     native <methods>;
@@ -43,4 +39,10 @@
 -keep class org.xmlpull.v1.** { *; }
 
 # Keep latlong2
--keep class com.github.johnpryan.latlong2.** { *; } 
+-keep class com.github.johnpryan.latlong2.** { *; }
+
+# Keep Google Play Core classes to fix R8 errors
+-keep class com.google.android.play.core.** { *; }
+-keep class com.google.android.play.core.splitcompat.** { *; }
+-keep class com.google.android.play.core.splitinstall.** { *; }
+-keep class com.google.android.play.core.tasks.** { *; } 
