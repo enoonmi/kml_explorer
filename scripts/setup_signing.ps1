@@ -1,4 +1,4 @@
-# 生成 Android release 签名（keystore + key.properties）
+﻿# 生成 Android release 签名（keystore + key.properties）
 #
 # 用法（在仓库根目录执行）：
 #   pwsh -File scripts/setup_signing.ps1

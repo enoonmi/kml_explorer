@@ -49,6 +49,10 @@ app.*.map.json
 **/*.keystore
 **/*.jks
 
+# 构建产物：APK 不入库（如需分发请走 Releases）
+*.apk
+*.aab
+
 # 参考资料与个人轨迹：不入库
 /reference/
 
