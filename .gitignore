@@ -56,6 +56,9 @@ app.*.map.json
 # 参考资料与个人轨迹：不入库
 /reference/
 
+# 界面截图含个人真实轨迹与日期，不入库
+/docs/
+
 # iOS related
 **/ios/**/*.mode1v3
 **/ios/**/*.mode2v3

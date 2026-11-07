@@ -14,7 +14,7 @@
 
 | 项 | 位置 |
 | --- | --- |
-| Android release APK（53.6 MB，v2 签名） | [kml_explorer-1.0.0-release.apk](kml_explorer-1.0.0-release.apk)（构建产物副本） |
+| Android release APK（53.6 MB，v2 签名） | 本地构建产物（体积原因不入库，请自行构建或从 Releases 下载） |
 | 原始构建输出 | `build/app/outputs/flutter-apk/app-release.apk` |
 | 一键构建脚本 | [scripts/build_android.ps1](scripts/build_android.ps1) |
 | 一键环境检测 | [scripts/setup_env.ps1](scripts/setup_env.ps1) |
@@ -22,11 +22,17 @@
 
 **APK 信息**：`com.example.kml_explorer` v1.0.0 (versionCode 1) · minSdk 24 · targetSdk 35 · 含 `arm64-v8a / armeabi-v7a / x86 / x86_64` 四个 ABI · 签名证书 `CN=KML Explorer`（SHA-256 `296f26da…aaaf21`）。
 
+构建并用脚本产出 APK：
+
+```powershell
+pwsh -File scripts/build_android.ps1
+```
+
 安装到手机：
 
 ```powershell
 # 手机开启 USB 调试后
-adb install -r kml_explorer-1.0.0-release.apk
+adb install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ---
@@ -404,7 +410,7 @@ file_picker 选文件
 - Gradle：AGP 8.7.3 / Kotlin 2.1.0 / Gradle 8.12 / JVM 17；minSdk 24 / targetSdk 35 / compileSdk 35
 - 依赖仓库在 [settings.gradle.kts](android/settings.gradle.kts) 的 `dependencyResolutionManagement` 中声明（**不要**写 `allprojects { repositories }`，见第 2.3 节坑 2）
 - 未声明 `ndkVersion`：本项目无自定义 C/C++ 代码，也无插件带 `CMakeLists.txt`，声明 NDK 只会让 AGP 为空跑 CMake 并在 `mergeReleaseNativeLibs` 卡住
-- 签名：口令从 [android/key.properties](android/key.properties) 读取，该文件与 `*.jks` 均已在 `.gitignore` 中；无该文件时显式退回 debug 签名
+- 签名：口令从 `android/key.properties` 读取，该文件与 `*.jks` 均已在 `.gitignore` 中（故仓库内不含此文件）；无该文件时显式退回 debug 签名
 
 **Windows**（[windows/runner/main.cpp](windows/runner/main.cpp)）窗口标题 `kml_explorer`，初始 1280×720。
 
