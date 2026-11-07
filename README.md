@@ -326,48 +326,53 @@ file_picker 选文件
 
 ## 9. 已知问题与技术债
 
-按影响排序，供后续重构参考：
+按影响排序。其中「已解决」条目保留记录，便于追溯重构收益。
 
-### 🔴 会直接影响功能
+### ✅ 已解决（本次重构）
 
-1. **`test/widget_test.dart` 是失效的模板测试**：断言 `find.text('0')`、点 `Icons.add`，而 `MyApp` 里根本没有计数器。`flutter test` 必然失败。
-2. **位置更新间隔设置是空的**：`_locationUpdateInterval` 只用于提示文案和重启流，但 `LocationSettings` 里写死 `intervalDuration: 5s`、`fastestIntervalDuration: 1s`、`distanceFilter: 5`，**用户在「位置设置」里选 1/3/10/30 秒不会生效**。
-3. **Android release 签名配错**：`buildTypes.release` 用的是 `signingConfigs.getByName("debug")`，虽然上面定义了 `signingConfigs.create("release")` 却没用上 —— 打出来的 release 包是 debug 签名的。
-4. **凭据以明文入库**：[build.gradle.kts](android/app/build.gradle.kts) 里硬编码了 keystore 密码 `kml_explorer_2024`（且 `kml_explorer.keystore` 就在仓库里）；WebDAV 密码也是明文存 `SharedPreferences`。
+1. ~~`test/widget_test.dart` 是失效的模板测试~~ —— 已删除，改为 `kml_parser_test.dart` 与 `coord_transform_test.dart` 两组真实测试。
+2. ~~位置更新间隔设置是空的~~ —— `location_controller.dart:49` 已把用户选择的间隔真正传入 `intervalDuration`。
+3. ~~Android release 签名配错~~ —— `build.gradle.kts:52` 改为「有 `key.properties` 就用 release 签名，否则退回 debug」，不再静默混淆。
+4. ~~凭据以明文入库~~ —— 签名口令改由 `key.properties` 读取，该文件已列入 `.gitignore`；keystore 从未进入仓库历史。
+5. ~~坐标系判定靠底图名字字符串~~ —— 改由 `TileServer.isChineseMap` 显式标注，见 `lib/models/tile_server.dart`。
+6. ~~`main.dart` 2102 行单体~~ —— 已拆分为 `pages/map_page.dart`（UI）、`controllers/location_controller.dart`、`services/{settings,tile_probe,track_renderer}_service` 等，入口只剩 24 行。
+7. ~~`.vscode/settings.json` 的 `cmake.sourceDirectory` 指向旧路径~~ —— 该文件已列入 `.gitignore`，不再跟随仓库分发。
+8. ~~整个项目不在版本控制下~~ —— 已建立 git 仓库并关联 `origin/main`。
+
+### 🔴 仍需处理
+
+1. **WebDAV 密码明文存放**：凭据以明文写在 `SharedPreferences` 中，建议改用 `flutter_secure_storage`。
+2. **无 KML 导出/回写**：所有编辑只落元数据，原始 KML 永不更新，无法把改好的轨迹带回其它 App。
 
 ### 🟡 逻辑不严谨
 
-5. **`LineString` 的速度全是 0、时间戳是合成的**（`i * 30s`），导致速度曲线与"轨迹时间"对这类文件没有参考价值。
-6. **WebDAV 重复清理的"保留最新"失效**：`listFiles()` 把 `lastModified` 一律写成 `DateTime.now()`，排序结果随机。
-7. **`_exists()` 连续调了两次 `readDir`**，多一次无用往返。
-8. **失败被静默吞掉**：瓦片挂了有 1×1 透明 PNG 兜底，`deleteFile`/`uploadFile` 多数分支只 `debugPrint` 不抛错。
-9. **坐标系判定靠底图名字字符串**（`contains('高德')`/`contains('天地图')`），新增供应商容易漏改。
+3. **`LineString` 的速度全是 0、时间戳是合成的**（`i * 30s`，见 `kml_parser.dart:450/527/583`），导致速度曲线与「轨迹时间」对这类文件没有参考价值。
+4. **失败被静默吞掉**：瓦片挂了有 1×1 透明 PNG 兜底，`deleteFile`/`uploadFile` 多数分支只 `debugPrint` 不抛错。
 
 ### 🟢 结构问题
 
-10. **`main.dart` 2102 行单体**，UI、业务、网络、持久化全在一个 State 里；无状态管理、无路由表、无依赖注入，`setState` 到处飞。
-11. **`TrackEditPage` 是死代码**（524 行，无引用），与 `TrackEditDialog` 功能重复。
-12. **序列化方式脆弱**：`KmlFile.toJson` 把标注点写成**定长位置数组**（`marker[11]` 取 `extendedData`），字段一改就崩；`KmlMarker.fromJson`、`TileServer.fromJson` 也不被主流程使用。
-13. **无 KML 导出/回写**：所有编辑只落元数据，原始 KML 永不更新，也就无法把改好的轨迹带回其它 App。
-14. **`webdav_client` 之外还散落 `http` 直连**（网络探测打 `httpbin.org`），启动阶段多一次外部依赖。
-15. **仓库卫生**：`build/`（含 NuGet 包与 CMake 缓存）、`.dart_tool/`、`.idea/`、`.vscode/` 都在目录里；[.vscode/settings.json](.vscode/settings.json) 里的 `cmake.sourceDirectory` 还指向旧路径 `D:/code/explorer/kml_explorer/windows`（实际是 `D:/code/kml_explorer/windows`）。且**整个项目不在版本控制下**。
+5. **`TrackEditPage` 是死代码**（无任何 import 引用），与 `TrackEditDialog` 功能重复，应删除或接回界面。
+6. **序列化方式脆弱**：`KmlFile.toJson` 把标注点写成**定长位置数组**（`marker[11]` 取 `extendedData`，见 `kml_file.dart:286`），字段一改就崩，建议换具名 Map 或 `json_serializable`。
+7. **状态管理仍靠层层回调**：`onFilesChanged / onTrackSelected / onFilteredFilesChanged` 三条线手工串联，可考虑引入 Provider / Riverpod。
 
 ---
 
 ## 10. 如果要继续改，建议顺序
 
-1. 先修「三件小事」：删掉/重写 `widget_test.dart`、release 签名改用 `release` 配置、让位置间隔真正传入 `LocationSettings`。
-2. 把 `main.dart` 拆出去：`tile_server_manager`（底图与健康检查）、`location_controller`、`track_renderer`（坐标转换 + 图层构建）、`map_page`（只剩 UI）。
-3. 引入状态管理（Provider / Riverpod 均可）承接 `KmlFile` 列表，去掉层层回调（现在 `onFilesChanged / onTrackSelected / onFilteredFilesChanged` 三条线手工串）。
-4. 给 `KmlFile.toJson` 换成具名 Map 序列化（或 `json_serializable`），顺带补一个 `migrationVersion` 字段。
-5. 视需要加 KML 导出（把当前 `startPointIndex..endPointIndex` 与样式写回一个新 `.kml`）。
-6. 想留 `TrackEditPage` 就接进界面，不想留就删除，别让两份编辑器并行腐化。
+1. 删掉或接回 `TrackEditPage`，别让两份编辑器并行腐化。
+2. 给 `KmlFile.toJson` 换成具名 Map 序列化（或 `json_serializable`），顺带补 `migrationVersion` 字段。
+3. WebDAV 密码迁移到 `flutter_secure_storage`。
+4. 补 KML 导出（把 `startPointIndex..endPointIndex` 与样式写回新 `.kml`）。
+5. 引入状态管理承接 `KmlFile` 列表，去掉三线回调。
+6. `LineString` 的速度/时间戳按真实数据推导，而非合成值。
 
 ---
 
 ## 11. 参考资料
 
-- [OGC KML 2.2 规范](reference/07-147r2_OGC_KML_2.2.pdf)（就在 `reference/` 里）
-- 示例数据：[东莞长安莲花山轨迹](reference/2025-06-0210_28东莞长安莲花山.kml)（含 `gx:Track` + 图片标注点）、[鲲鹏径一至十一段合并](reference/鲲鹏径一到十一段（合并）.kml)（含 `TbuluLineStringFolder` 多段 `LineString`）
+> `reference/` 目录（OGC 规范 PDF 与个人轨迹样本）仅保留在本地，已列入 `.gitignore`，不随仓库分发。
+
+- OGC KML 2.2 规范（本地 `reference/07-147r2_OGC_KML_2.2.pdf`）
+- 本地示例数据（`reference/`）：东莞长安莲花山轨迹（含 `gx:Track` + 图片标注点）、鲲鹏径一至十一段合并（含多段 `LineString`）
 - [flutter_map 文档](https://docs.fleaflet.dev/) · [fl_chart](https://github.com/imaNNeo/fl_chart) · [geolocator](https://pub.dev/packages/geolocator)
 - 天地图密钥申请：<https://www.tianditu.gov.cn/>
